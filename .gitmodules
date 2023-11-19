@@ -1,0 +1,12 @@
+[submodule "AdventOfCode2015"]
+	path = AdventOfCode2015
+	url = git@github.com:JohnCosta27/AdventOfCode2015.git
+[submodule "AdventOfCode2020"]
+	path = AdventOfCode2020
+	url = git@github.com:JohnCosta27/AdventOfCode2020.git
+[submodule "AdventOfCode2021"]
+	path = AdventOfCode2021
+	url = git@github.com:JohnCosta27/AdventOfCode2021.git
+[submodule "AdventOfCode2022"]
+	path = AdventOfCode2022
+	url = git@github.com:JohnCosta27/AdventOfCode2022.git
