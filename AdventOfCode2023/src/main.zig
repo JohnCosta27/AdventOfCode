@@ -5,13 +5,14 @@ const std = @import("std");
 // const day4 = @import("./day4/day4.zig");
 // const day5 = @import("./day5/day5.zig");
 // const day6 = @import("./day6/day6.zig");
-const day7 = @import("./day7/day7.zig");
+// const day7 = @import("./day7/day7.zig");
+const day8 = @import("./day8/day8.zig");
 const utils = @import("utils.zig");
 
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
-    var input = try utils.getInput("./src/day7/input.txt", allocator);
+    var input = try utils.getInput("./src/day8/input.txt", allocator);
     defer allocator.free(input);
 
-    try day7.solve(input);
+    try day8.solve(input);
 }
