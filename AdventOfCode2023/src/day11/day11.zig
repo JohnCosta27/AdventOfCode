@@ -4,147 +4,101 @@ const print = std.debug.print;
 const GALAXY = 1;
 const SPACE = 0;
 
-fn min(num1: u256, num2: u256) usize {
+fn min(num1: usize, num2: usize) usize {
     if (num1 > num2) {
-        return @truncate(num2);
+        return (num2);
     }
-    return @truncate(num1);
+    return (num1);
 }
 
-fn max(num1: u256, num2: u256) usize {
+fn max(num1: usize, num2: usize) usize {
     if (num1 <= num2) {
-        return @truncate(num2);
+        return (num2);
     }
-    return @truncate(num1);
+    return (num1);
 }
 
 pub fn solve(input: [][]const u8) !void {
     var allocator = std.heap.page_allocator;
 
-    var grid = try allocator.alloc(u256, input.len);
-    var index: usize = 0;
+    var emptyRows = std.AutoHashMap(usize, usize).init(allocator);
+    var emptyCols = std.AutoHashMap(usize, usize).init(allocator);
 
-    for (input) |line| {
-        var line1: u256 = 0;
-        for (line) |_c| {
-            var c: u8 = 0;
-            if (_c == '.') {
-                c = SPACE;
-            } else {
-                c = GALAXY;
-            }
-
-            line1 = (line1 << 1) | @as(u256, c);
-        }
-
-        grid[index] = line1;
-        index += 1;
-    }
-
-    var rows: u256 = 0;
-    var cols: u256 = 0;
-
-    for (grid) |row| {
-        if (row == 0) {
-            rows = (rows << 1) | @as(u256, 1);
-            continue;
-        }
-        rows = rows << 1;
-    }
-
-    for (0..input[0].len) |i| {
-        var empty = true;
-        for (grid) |row| {
-            var truncated: u8 = @truncate(input[0].len - i - 1);
-            if (row & @as(u256, @as(u256, 1) << truncated) != 0) {
-                empty = false;
+    for (input, 0..) |line, i| {
+        var emptyRow = true;
+        for (line) |c| {
+            if (c == '#') {
+                emptyRow = false;
                 break;
             }
         }
-
-        if (empty) {
-            cols = (cols << 1) | @as(u256, 1);
-            continue;
+        if (emptyRow) {
+            try emptyRows.put(i, 1);
         }
-        cols = cols << 1;
     }
 
-    var pair: usize = 0;
+    for (0..input[0].len) |i| {
+        var emptyCol = true;
+        for (0..input.len) |j| {
+            if (input[j][i] == '#') {
+                emptyCol = false;
+            }
+        }
+        if (emptyCol) {
+            try emptyCols.put(i, 1);
+        }
+    }
+
+    var pairs: usize = 0;
     var part1: usize = 0;
 
-    for (grid, 0..) |row, i| {
-        var galaxy: u265 = 1;
-        for (1..256) |k1| {
-            var comp1 = galaxy & row;
-            if (comp1 > 0) {
+    var MULTIPLIER: usize = 1_000_000;
 
-                //
-                // We found galaxy!
-                //
+    for (0..input.len) |i| {
+        for (0..input[0].len) |j| {
+            if (input[i][j] != '#') {
+                continue;
+            }
 
-                for (i..grid.len) |j| {
-                    var rowAgain = grid[j];
-                    var galaxy2: u265 = 1;
-
-                    for (1..256) |k2| {
-                        var comp2 = galaxy2 & rowAgain;
-                        if (comp2 > 0) {
-                            var found = i != j or k2 > k1;
-
-                            if (found) {
-                                pair += 1;
-                                var distY: u256 = 0;
-                                if (k1 > k2) {
-                                    distY = k1 - k2;
-                                } else {
-                                    distY = k2 - k1;
-                                }
-
-                                // print("Galaxy 1 | {},{}\n", .{ k1, i });
-                                // print("Galaxy 2 | {},{}\n", .{ k2, j });
-
-                                var emptyRows: u256 = 0;
-                                var emptyCols: u256 = 0;
-
-                                if (i != j) {
-                                    for (i + 1..j) |_shift| {
-                                        var shift: u8 = @truncate(_shift);
-                                        var u8Length: u8 = @truncate(input.len);
-                                        var r = @as(u256, 1) << (u8Length - shift - 1);
-
-                                        if (r & rows > 0) {
-                                            emptyRows += 1;
-                                        }
-                                    }
-                                }
-
-                                if (k1 != k2) {
-                                    for (min(k1, k2) + 1..max(k1, k2)) |_shift| {
-                                        var shift: u8 = @truncate(_shift);
-                                        var u8Length: u8 = @truncate(input[0].len);
-                                        var r = @as(u256, 1) << (u8Length - shift - 1);
-
-                                        if (r & cols > 0) {
-                                            emptyCols += 1;
-                                        }
-                                    }
-                                }
-
-                                var dist = distY + (j - i) + emptyRows + emptyCols;
-
-                                print("Distance: {}\n", .{dist});
-                                print("---\n", .{});
-                                part1 += @truncate(dist);
-                            }
-                        }
-                        galaxy2 = galaxy2 << 1;
+            // found one.
+            for (i..input.len) |a| {
+                for (0..input[0].len) |b| {
+                    if (i == a and j == b) {
+                        continue;
                     }
+                    if (i == a and b < j) {
+                        continue;
+                    }
+                    if (input[a][b] != '#') {
+                        continue;
+                    }
+
+                    // print("Galaxy 1 | {} {}\n", .{ j, i });
+                    // print("Galaxy 2 | {} {}\n", .{ b, a });
+
+                    var dist: usize = (a - i) + (max(j, b) - min(j, b));
+
+                    for (i..a) |k| {
+                        if (emptyRows.get(k)) |_| {
+                            dist += MULTIPLIER - 1;
+                        }
+                    }
+
+                    for (min(j, b)..max(j, b)) |k| {
+                        if (emptyCols.get(k)) |_| {
+                            dist += MULTIPLIER - 1;
+                        }
+                    }
+
+                    // print("Distance: {}\n", .{dist});
+                    // print("----\n", .{});
+                    pairs += 1;
+                    part1 += dist;
                 }
             }
-            galaxy = galaxy << 1;
         }
     }
 
-    print("Pairs: {}\n", .{pair});
+    print("Pairs: {}\n", .{pairs});
     print("Part 1: {}\n", .{part1});
 }
