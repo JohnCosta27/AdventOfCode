@@ -5,7 +5,7 @@ const ROCK = '#';
 const START = 'S';
 const GARDEN = '.';
 const STEPS = 1;
-const PART2_STEPS = 6;
+const PART2_STEPS = 50;
 
 fn printGrid(grid: [][]u8) void {
     for (grid) |row| {
@@ -154,6 +154,7 @@ pub fn solve(input: [][]const u8) !void {
             var eastCoordY = y(east) % input.len;
 
             if (grid[northCoordY][northCoordX] != ROCK) {
+                print("{} - {},{}\n", .{ north, northCoordX, northCoordY });
                 try newCurrentSteps.put(north, true);
             }
             if (grid[southCoordY][southCoordX] != ROCK) {
