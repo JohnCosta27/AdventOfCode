@@ -1,239 +1,230 @@
 const std = @import("std");
 const print = std.debug.print;
 
+const Direction = enum(u2) { up = 0, right = 1, down = 2, left = 3 };
+
+const VERTICAL_SPLITTER = '|';
+const HORIZONTAL_SPLITTER = '-';
+
 const EMPTY = '.';
-const VERTICAL_SPLIT = '|';
-const HORIZONTAL_SPLIT = '-';
-const CLOCKWISE_TURN = '/';
-const ANTI_CLOCKWISE_TURN = '\\';
+const RIGHT_MIRROR = '/';
 
-const Directions = enum { UP, DOWN, LEFT, RIGHT };
-
-const BeamsController = struct {
-    beams: std.AutoHashMap(usize, *Beam),
-    allocator: std.mem.Allocator,
-    counter: usize,
-    heatmap: std.AutoHashMap(u128, bool),
-    splitsMade: std.AutoHashMap(u128, bool),
-
-    pub fn walk(self: *BeamsController) !void {
-        var iter = self.*.beams.iterator();
-        var deleteList = std.ArrayList(usize).init(self.allocator);
-        defer deleteList.deinit();
-
-        while (iter.next()) |entry| {
-            var delete = try entry.value_ptr.*.step();
-            if (delete) {
-                // print("Beam {} removing\n", .{entry.value_ptr.*.index});
-                try deleteList.append(entry.key_ptr.*);
-                // self.allocator.destroy(entry.value_ptr.*);
-            } else {
-                // var beams = entry.value_ptr.*;
-                // print("Beam {} ({},{}) {}\n", .{ beams.index, beams.x, beams.y, beams.direction });
-            }
-        }
-
-        for (deleteList.items) |i| {
-            _ = self.*.beams.remove(i);
-        }
-    }
-
-    pub fn horizontalSplit(self: *BeamsController, beam: *Beam) !bool {
-        // Assume direction is up or down.
-        // Assume "parent" beam always goes right.
-
-        var coord = @as(u128, beam.x) << 64 | @as(u128, beam.y);
-        if (self.*.splitsMade.get(coord)) |_| {
-            // dont split again
-            return true;
-        }
-
-        var splitBeam = try self.allocator.create(Beam);
-        splitBeam.*.grid = beam.*.grid;
-        splitBeam.*.x = beam.*.x;
-        splitBeam.*.y = beam.*.y;
-        splitBeam.*.direction = Directions.LEFT;
-        splitBeam.*.controller = beam.*.controller;
-
-        self.*.counter += 1;
-        splitBeam.*.index = self.*.counter;
-
-        try self.*.beams.put(splitBeam.index, splitBeam);
-        try self.*.splitsMade.put(coord, true);
-
-        return false;
-    }
-
-    pub fn verticalSplit(self: *BeamsController, beam: *Beam) !bool {
-        // Assume direction is left or right
-        // Assume "parent" beam always goes down.
-
-        var coord = @as(u128, beam.x) << 64 | @as(u128, beam.y);
-        if (self.*.splitsMade.get(coord)) |_| {
-            // dont split again
-            return true;
-        }
-
-        var splitBeam = try self.allocator.create(Beam);
-        splitBeam.*.grid = beam.*.grid;
-        splitBeam.*.x = beam.*.x;
-        splitBeam.*.y = beam.*.y;
-        splitBeam.*.direction = Directions.UP;
-        splitBeam.*.controller = beam.*.controller;
-
-        self.*.counter += 1;
-        splitBeam.*.index = self.*.counter;
-
-        try self.*.beams.put(splitBeam.index, splitBeam);
-        try self.*.splitsMade.put(coord, true);
-
-        return false;
-    }
-};
+const LEFT_MIRROR = '\\';
 
 const Beam = struct {
-    grid: *[][]const u8,
     x: usize,
     y: usize,
-    direction: Directions,
-    controller: *BeamsController,
-    index: usize,
 
-    pub fn step(self: *Beam) !bool {
-        var coord = @as(u128, self.x) << 64 | @as(u128, self.y);
-        try self.*.controller.heatmap.put(coord, true);
-        switch (self.direction) {
-            Directions.RIGHT => {
-                if (self.*.x == self.*.grid.*[0].len - 1) {
-                    return true;
-                }
+    isActive: bool,
 
-                var tile = self.*.grid.*[self.*.y][self.*.x];
-                if (tile == VERTICAL_SPLIT) {
-                    // call beams controller vertical split.
-                    var alreadyDone = try self.controller.verticalSplit(self);
-                    if (alreadyDone) {
-                        return true;
-                    }
-                    self.*.direction = Directions.DOWN;
-                } else if (tile == CLOCKWISE_TURN) {
-                    // moving right. turn upwards.
-                    self.*.direction = Directions.UP;
-                } else if (tile == ANTI_CLOCKWISE_TURN) {
-                    self.*.direction = Directions.DOWN;
-                }
-            },
-            Directions.LEFT => {
-                if (self.*.x == 0) {
-                    return true;
-                }
-
-                var tile = self.*.grid.*[self.*.y][self.*.x];
-                if (tile == VERTICAL_SPLIT) {
-                    // call beams controller vertical split.
-                    var alreadyDone = try self.controller.verticalSplit(self);
-                    if (alreadyDone) {
-                        return true;
-                    }
-                    self.*.direction = Directions.DOWN;
-                } else if (tile == CLOCKWISE_TURN) {
-                    // moving right. turn upwards.
-                    self.*.direction = Directions.DOWN;
-                } else if (tile == ANTI_CLOCKWISE_TURN) {
-                    self.*.direction = Directions.UP;
-                }
-            },
-            Directions.UP => {
-                if (self.*.y == 0) {
-                    return true;
-                }
-
-                var tile = self.*.grid.*[self.*.y][self.*.x];
-                if (tile == HORIZONTAL_SPLIT) {
-                    // call beams controller vertical split.
-                    var alreadyDone = try self.controller.horizontalSplit(self);
-                    if (alreadyDone) {
-                        return true;
-                    }
-                    self.*.direction = Directions.RIGHT;
-                } else if (tile == CLOCKWISE_TURN) {
-                    // moving right. turn upwards.
-                    self.*.direction = Directions.RIGHT;
-                } else if (tile == ANTI_CLOCKWISE_TURN) {
-                    self.*.direction = Directions.LEFT;
-                }
-            },
-            Directions.DOWN => {
-                if (self.*.y == self.*.grid.*.len - 1) {
-                    return true;
-                }
-
-                var tile = self.*.grid.*[self.*.y][self.*.x];
-                if (tile == HORIZONTAL_SPLIT) {
-                    // call beams controller vertical split.
-                    var alreadyDone = try self.controller.horizontalSplit(self);
-                    if (alreadyDone) {
-                        return true;
-                    }
-                    self.*.direction = Directions.RIGHT;
-                } else if (tile == CLOCKWISE_TURN) {
-                    // moving right. turn upwards.
-                    self.*.direction = Directions.LEFT;
-                } else if (tile == ANTI_CLOCKWISE_TURN) {
-                    self.*.direction = Directions.RIGHT;
-                }
-            },
-        }
-
-        switch (self.direction) {
-            Directions.UP => {
-                self.*.y -= 1;
-            },
-            Directions.DOWN => {
-                self.*.y += 1;
-            },
-            Directions.LEFT => {
-                self.*.x -= 1;
-            },
-            Directions.RIGHT => {
-                self.*.x += 1;
-            },
-        }
-
-        coord = @as(u128, self.x) << 64 | @as(u128, self.y);
-        try self.*.controller.heatmap.put(coord, true);
-
-        return false;
-    }
+    direction: Direction,
 };
 
-pub fn solve(input: [][]const u8) !void {
-    var allocator = std.heap.page_allocator;
-    var controller = BeamsController{ .allocator = allocator, .beams = std.AutoHashMap(usize, *Beam).init(allocator), .counter = 0, .heatmap = std.AutoHashMap(u128, bool).init(allocator), .splitsMade = std.AutoHashMap(u128, bool).init(allocator) };
-
-    var in = input;
-
-    var firstBeam = try allocator.create(Beam);
-    firstBeam.*.x = 0;
-    firstBeam.*.y = 0;
-    firstBeam.*.direction = Directions.RIGHT;
-    firstBeam.*.grid = &in;
-    firstBeam.*.controller = &controller;
-    firstBeam.*.index = 0;
-
-    try controller.beams.put(0, firstBeam);
-
-    while (controller.beams.count() > 0) {
-        try controller.walk();
-    }
-
-    var iter = controller.heatmap.iterator();
-    while (iter.next()) |entry| {
-        var x = entry.key_ptr.* >> 64;
-        var y = entry.key_ptr.* & 0xFFFFFFFFFFFFFFFF;
-        print("{},{}\n", .{ x, y });
-    }
-
-    print("Part 1: {}\n", .{controller.heatmap.count()});
+fn encode_coord(x: usize, y: usize) u128 {
+    return @as(u128, x) << 64 | @as(u128, y);
 }
-// 6858
+
+fn encode_coord_with_direction(x: usize, y: usize, direction: Direction) u130 {
+    return @as(u130, x) << 66 | @as(u130, y) << 2 | @intFromEnum(direction);
+}
+
+fn tiles_covered(allocator: std.mem.Allocator, input: [][]const u8, initial_beam: *Beam) !usize {
+    var beams = std.ArrayList(*Beam).init(allocator);
+
+    try beams.append(initial_beam);
+
+    var tile_set = std.AutoHashMap(u128, bool).init(allocator);
+    try tile_set.put(encode_coord(initial_beam.x, initial_beam.y), true);
+
+    var coord_direction_set = std.AutoHashMap(u130, bool).init(allocator);
+
+    while (beams.items.len > 0) {
+        const owned_beams = try beams.toOwnedSlice();
+        beams = std.ArrayList(*Beam).init(allocator);
+
+        for (owned_beams) |beam| {
+            if (!beam.isActive) {
+                continue;
+            }
+
+            const encoded_coord = encode_coord_with_direction(beam.x, beam.y, beam.direction);
+
+            if (coord_direction_set.get(encoded_coord)) |_| {
+                continue;
+            }
+
+            try coord_direction_set.put(encoded_coord, true);
+            try beams.append(beam);
+
+            switch (input[beam.y][beam.x]) {
+                RIGHT_MIRROR => {
+                    switch (beam.direction) {
+                        Direction.up => beam.*.direction = Direction.right,
+                        Direction.right => beam.*.direction = Direction.up,
+                        Direction.down => beam.*.direction = Direction.left,
+                        Direction.left => beam.*.direction = Direction.down,
+                    }
+                },
+                LEFT_MIRROR => {
+                    switch (beam.direction) {
+                        Direction.up => beam.*.direction = Direction.left,
+                        Direction.right => beam.*.direction = Direction.down,
+                        Direction.down => beam.*.direction = Direction.right,
+                        Direction.left => beam.*.direction = Direction.up,
+                    }
+                },
+                VERTICAL_SPLITTER => {
+                    switch (beam.direction) {
+                        Direction.left, Direction.right => {
+                            beam.*.direction = Direction.up;
+
+                            const new_beam = try allocator.create(Beam);
+                            new_beam.*.x = beam.x;
+                            new_beam.*.y = beam.y;
+                            new_beam.*.isActive = true;
+                            new_beam.*.direction = Direction.down;
+
+                            try beams.append(new_beam);
+                        },
+                        else => {},
+                    }
+                },
+                HORIZONTAL_SPLITTER => {
+                    switch (beam.direction) {
+                        Direction.up, Direction.down => {
+                            beam.*.direction = Direction.right;
+
+                            const new_beam = try allocator.create(Beam);
+                            new_beam.*.x = beam.x;
+                            new_beam.*.y = beam.y;
+                            new_beam.*.isActive = true;
+                            new_beam.*.direction = Direction.left;
+
+                            try beams.append(new_beam);
+                        },
+                        else => {},
+                    }
+                },
+                else => {},
+            }
+
+            switch (beam.direction) {
+                Direction.up => {
+                    if (beam.y == 0) {
+                        beam.*.isActive = false;
+                        continue;
+                    }
+
+                    beam.*.y -= 1;
+                },
+                Direction.right => {
+                    if (beam.x == input[0].len - 1) {
+                        beam.*.isActive = false;
+                        continue;
+                    }
+
+                    beam.*.x += 1;
+                },
+                Direction.down => {
+                    if (beam.y == input.len - 1) {
+                        beam.*.isActive = false;
+                        continue;
+                    }
+
+                    beam.*.y += 1;
+                },
+                Direction.left => {
+                    if (beam.*.x == 0) {
+                        beam.*.isActive = false;
+                        continue;
+                    }
+
+                    beam.*.x -= 1;
+                },
+            }
+
+            try tile_set.put(encode_coord(beam.x, beam.y), true);
+        }
+    }
+
+    return tile_set.count();
+}
+
+pub fn solve(input: [][]const u8) !void {
+    const allocator = std.heap.page_allocator;
+
+    var top_left_right = Beam{ .x = 0, .y = 0, .isActive = true, .direction = Direction.right };
+
+    const part1 = try tiles_covered(allocator, input, &top_left_right);
+    print("Part 1: {}\n", .{part1});
+
+    var starting_points = std.ArrayList(*Beam).init(allocator);
+
+    var top_left_down = Beam{ .x = 0, .y = 0, .isActive = true, .direction = Direction.down };
+
+    var top_right_down = Beam{ .x = input[0].len - 1, .y = 0, .isActive = true, .direction = Direction.down };
+    var top_right_left = Beam{ .x = input[0].len - 1, .y = 0, .isActive = true, .direction = Direction.left };
+
+    var bottom_left_right = Beam{ .x = 0, .y = input.len - 1, .isActive = true, .direction = Direction.right };
+    var bottom_left_up = Beam{ .x = 0, .y = input.len - 1, .isActive = true, .direction = Direction.up };
+
+    var bottom_right_left = Beam{ .x = input[0].len - 1, .y = input.len - 1, .isActive = true, .direction = Direction.left };
+    var bottom_right_up = Beam{ .x = input[0].len - 1, .y = input.len - 1, .isActive = true, .direction = Direction.up };
+
+    try starting_points.append(&top_left_right);
+    try starting_points.append(&top_left_down);
+
+    try starting_points.append(&top_right_down);
+    try starting_points.append(&top_right_left);
+
+    try starting_points.append(&bottom_left_right);
+    try starting_points.append(&bottom_left_up);
+
+    try starting_points.append(&bottom_right_left);
+    try starting_points.append(&bottom_right_up);
+
+    for (1..input.len) |y| {
+        var r = try allocator.create(Beam);
+        r.x = 0;
+        r.y = y;
+        r.isActive = true;
+        r.direction = Direction.right;
+
+        var l = try allocator.create(Beam);
+        l.x = input[0].len - 1;
+        l.y = y;
+        l.isActive = true;
+        l.direction = Direction.left;
+
+        try starting_points.append(l);
+        try starting_points.append(r);
+    }
+
+    for (1..input[0].len) |x| {
+        var d = try allocator.create(Beam);
+        d.x = x;
+        d.y = 0;
+        d.isActive = true;
+        d.direction = Direction.down;
+
+        var u = try allocator.create(Beam);
+        u.x = x;
+        u.y = input.len - 1;
+        u.isActive = true;
+        u.direction = Direction.up;
+
+        try starting_points.append(d);
+        try starting_points.append(u);
+    }
+
+    var highest: usize = 0;
+    for (try starting_points.toOwnedSlice()) |starting| {
+        const covered = try tiles_covered(allocator, input, starting);
+
+        if (covered > highest) {
+            highest = covered;
+        }
+    }
+
+    print("Part 2: {}\n", .{highest});
+}
