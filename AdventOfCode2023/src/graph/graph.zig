@@ -23,7 +23,7 @@ const Graph = struct {
     nodes: []*Node,
 };
 
-// 1  function Dijkstra(Graph, source):
+//  1  function Dijkstra(Graph, source):
 //  2
 //  3      for each vertex v in Graph.Vertices:
 //  4          dist[v] ← INFINITY
@@ -121,4 +121,51 @@ test "Can find shortest path between A and D" {
     try expect(shortest_path_a_d == 5);
     try expect(shortest_path_b_d == 1);
     try expect(shortest_path_a_c == 3);
+}
+
+test "Bigger graph" {
+    const page_allocator = std.heap.page_allocator;
+
+    var a = Node{ .out_edges = undefined, .label = "A", .work_distance = 0 };
+    var b = Node{ .out_edges = undefined, .label = "B", .work_distance = 0 };
+    var c = Node{ .out_edges = undefined, .label = "C", .work_distance = 0 };
+    var d = Node{ .out_edges = undefined, .label = "D", .work_distance = 0 };
+    var e = Node{ .out_edges = undefined, .label = "E", .work_distance = 0 };
+    var f = Node{ .out_edges = undefined, .label = "F", .work_distance = 0 };
+    var g = Node{ .out_edges = undefined, .label = "G", .work_distance = 0 };
+    var h = Node{ .out_edges = undefined, .label = "H", .work_distance = 0 };
+
+    const ab = Edge{ .in_node = &a, .out_node = &b, .distance = 4 };
+    const ad = Edge{ .in_node = &a, .out_node = &d, .distance = 4 };
+
+    const bf = Edge{ .in_node = &b, .out_node = &f, .distance = 8 };
+    const bc = Edge{ .in_node = &b, .out_node = &c, .distance = 3 };
+
+    const ce = Edge{ .in_node = &c, .out_node = &e, .distance = 1 };
+    const cd = Edge{ .in_node = &c, .out_node = &d, .distance = 1 };
+
+    const dg = Edge{ .in_node = &d, .out_node = &g, .distance = 10 };
+
+    const ef = Edge{ .in_node = &e, .out_node = &f, .distance = 4 };
+    const eg = Edge{ .in_node = &e, .out_node = &g, .distance = 5 };
+
+    const fg = Edge{ .in_node = &f, .out_node = &g, .distance = 2 };
+    const fh = Edge{ .in_node = &f, .out_node = &h, .distance = 6 };
+
+    const gh = Edge{ .in_node = &g, .out_node = &h, .distance = 4 };
+
+    a.out_edges = &[_]Edge{ ab, ad };
+    b.out_edges = &[_]Edge{ bf, bc };
+    c.out_edges = &[_]Edge{ ce, cd };
+    d.out_edges = &[_]Edge{dg};
+    e.out_edges = &[_]Edge{ ef, eg };
+    f.out_edges = &[_]Edge{ fg, fh };
+    g.out_edges = &[_]Edge{gh};
+
+    var nodes = [_]*Node{ &a, &b, &c, &d, &e, &f, &g, &h };
+    const graph = Graph{ .nodes = &nodes };
+
+    const shortest_path_a_d = try dijkstra(page_allocator, graph, &a, &h);
+
+    try expect(shortest_path_a_d == 17);
 }
