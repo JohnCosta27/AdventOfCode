@@ -5,21 +5,21 @@ const print = std.debug.print;
 const log = std.log;
 const mem = std.mem;
 
-const Edge = struct {
+pub const Edge = struct {
     in_node: *Node,
     out_node: *Node,
 
     distance: usize,
 };
 
-const Node = struct {
+pub const Node = struct {
     out_edges: []const Edge,
 
     label: []const u8,
     work_distance: usize,
 };
 
-const Graph = struct {
+pub const Graph = struct {
     nodes: []*Node,
 };
 
@@ -55,7 +55,7 @@ fn find_shortest_index(list: *std.ArrayList(*const Node)) usize {
     return shortestIndex;
 }
 
-fn dijkstra(allocator: std.mem.Allocator, graph: Graph, source: *Node, destination: *Node) !usize {
+pub fn dijkstra(allocator: std.mem.Allocator, graph: Graph, source: *Node, destination: *Node) !usize {
     var work_map = std.AutoHashMap(*const Node, *const Node).init(allocator);
 
     // this is for sure the wrong data structure
@@ -72,6 +72,8 @@ fn dijkstra(allocator: std.mem.Allocator, graph: Graph, source: *Node, destinati
     while (work_queue.items.len > 0) {
         const closest_node_index = find_shortest_index(&work_queue);
         const closest_node = work_queue.orderedRemove(closest_node_index);
+
+        print("Current node: {}\n", .{closest_node.work_distance});
 
         for (closest_node.out_edges) |edge| {
             const neighbor = edge.out_node;
