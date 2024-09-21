@@ -90,7 +90,7 @@ const XmasRange = struct {
     a: Range,
     s: Range,
 
-    pub fn sum(self: XmasRange) usize {
+    pub fn product(self: XmasRange) usize {
         return self.x.size() * self.m.size() * self.a.size() * self.s.size();
     }
 };
@@ -280,7 +280,7 @@ fn count_ranges(workflows: std.StringHashMap(Workflow), _range: XmasRange, workf
             RuleType.terminal => |_terminal| {
                 const terminal: Terminal = _terminal;
                 if (terminal.accept) {
-                    total += range.sum();
+                    total += range.product();
                 }
             },
             RuleType.non_terminal_instant => |_non_terminal_instant| {
@@ -302,7 +302,7 @@ fn count_ranges(workflows: std.StringHashMap(Workflow), _range: XmasRange, workf
                 if (!truth_range.is_empty()) {
                     if (terminal_expression.accept) {
                         const tigher_range = tighten_range(range, truth_range, terminal_expression.expression.attribute);
-                        total += tigher_range.sum();
+                        total += tigher_range.product();
                     }
                 }
 
