@@ -9,7 +9,7 @@ pub fn getInput(fileName: []const u8, allocator: mem.Allocator) !([][]u8) {
     var lines = ArrayList([]u8).init(allocator);
     defer lines.deinit();
 
-    var iterator = mem.split(u8, content, "\n");
+    var iterator = mem.splitSequence(u8, content, "\n");
 
     while (iterator.next()) |line| {
         const mutableSlice = try allocator.alloc(u8, line.len);
