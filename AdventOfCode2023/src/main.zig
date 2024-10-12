@@ -19,15 +19,15 @@ const std = @import("std");
 // const day19 = @import("./day19/day19.zig");
 // const day20 = @import("./day20/day20.zig");
 // const day21 = @import("./day21/day21.zig");
-const day22 = @import("./day22/day22.zig");
-// const day23 = @import("./day23/day23.zig");
+// const day22 = @import("./day22/day22.zig");
+const day23 = @import("./day23/day23.zig");
 // const day24 = @import("./day24/day24.zig");
 const utils = @import("utils.zig");
 
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
-    const input = try utils.getInput("./src/day22/input.txt", allocator);
+    const input = try utils.getInput("./src/day23/input.txt", allocator);
     defer allocator.free(input);
 
-    try day22.solve(input);
+    try day23.solve(input);
 }
