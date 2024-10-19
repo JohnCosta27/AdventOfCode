@@ -2,6 +2,9 @@ const std = @import("std");
 const print = std.debug.print;
 const expect = std.testing.expect;
 
+const ArrayList = std.ArrayList;
+const Map = std.AutoHashMap;
+
 const WALL = '#';
 
 pub fn Queue(comptime Child: type) type {
@@ -219,113 +222,188 @@ fn direction(input: *const [][]const u8, explored: *std.AutoHashMap(u128, bool),
     unreachable;
 }
 
-const Edge = struct { distance: usize, to_x: usize, to_y: usize };
+fn print_coord(c: u128, before: []const u8) void {
+    print("{s}{},{}\n", .{ before, y(c) + 1, x(c) + 1 });
+}
 
-fn compress_graph(allocator: std.mem.Allocator, input: [][]const u8) !std.AutoHashMap(u128, []Edge) {
-    var nodes = std.ArrayList(u128).init(allocator);
+fn arraylist_contains(list: *std.ArrayList(u128), node: u128) bool {
+    for (list.items) |item| {
+        if (item == node) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+const Edge = struct { distance: usize, to_x: usize, to_y: usize };
+const State = struct {
+    node: u128,
+    distance: usize,
+    previous_node: u128,
+};
+
+fn is_explored(explored: ArrayList(u128), c: u128) bool {
+    for (explored.items) |item| {
+        if (item == c) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+const XY = struct { x: i64, y: i64 };
+
+const directions: [4]XY = .{
+    XY{ .x = 0, .y = -1 }, // up
+    XY{ .x = 0, .y = 1 }, // down
+    XY{ .x = -1, .y = 0 }, // left
+    XY{ .x = 1, .y = 0 }, // right
+};
+
+fn adjacent_steps(input: *const [][]const u8, c: u128) usize {
+    var count: usize = 0;
+
+    const signed_x: i64 = @intCast(x(c));
+    const signed_y: i64 = @intCast(y(c));
+
+    inline for (directions) |d| {
+        const new_x: usize = @intCast(signed_x + d.x);
+        const new_y: usize = @intCast(signed_y + d.y);
+
+        if (input.*[new_y][new_x] != WALL) {
+            count += 1;
+        }
+    }
+
+    return count;
+}
+
+fn copy_arraylist(allocator: std.mem.Allocator, source: ArrayList(u128)) !ArrayList(u128) {
+    var new_list = ArrayList(u128).init(allocator);
+
+    for (source.items) |item| {
+        try new_list.append(item);
+    }
+
+    return new_list;
+}
+
+///
+/// DFS over the uncompressed graph, but without a target node, so our
+/// code runs over every part of the graph.
+///
+/// When you meet a co-ordinate you've been to, you must be at a intersection,
+/// and can create a node, and add an edge.
+///
+fn compress_graph_v2(allocator: std.mem.Allocator, start: u128, goal: u128, exclude: u128, input: [][]const u8) !Map(u128, []Edge) {
+    var nodes = Map(u128, ArrayList(Edge)).init(allocator);
+    try nodes.put(start, ArrayList(Edge).init(allocator));
     defer nodes.deinit();
 
-    for (1..input.len - 1) |y_part| {
-        for (1..input[0].len - 1) |x_part| {
-            if (input[y_part][x_part] != '.') {
-                continue;
-            }
+    var stack = ArrayList(State).init(allocator);
+    defer stack.deinit();
 
-            const up = coord(x_part, y_part - 1);
-            const down = coord(x_part, y_part + 1);
-            const right = coord(x_part + 1, y_part);
-            const left = coord(x_part - 1, y_part);
+    try stack.append(State{
+        .node = start,
+        .previous_node = start,
+        .distance = 0,
+    });
 
-            const non_wall_count = num_of_non_wall(&input, up, down, right, left);
-            if (non_wall_count == 0 or non_wall_count == 1) {
-                unreachable;
-            }
+    var explored = ArrayList(u128).init(allocator);
+    defer explored.deinit();
 
-            if (non_wall_count == 2) {
-                if (input[y(up)][x(up)] != WALL and input[y(down)][x(down)] != WALL) {
-                    continue;
-                }
+    while (stack.popOrNull()) |state| {
+        const node = state.node;
+        var distance = state.distance;
+        var previous_node = state.previous_node;
 
-                if (input[y(left)][x(left)] != WALL and input[y(right)][x(right)] != WALL) {
-                    continue;
-                }
-            }
-
-            try nodes.append(coord(x_part, y_part));
+        if (node == exclude or node == coord(1, 0)) {
+            continue;
         }
-    }
 
-    var edges_map = std.AutoHashMap(u128, []Edge).init(allocator);
+        // print("Exploring: {},{}\n", .{ y(node) + 1, x(node) + 1 });
 
-    for (nodes.items) |a| {
-        lower: for (nodes.items) |b| {
-            if (a == b) {
-                continue;
+        const node_x: i64 = @intCast(x(node));
+        const node_y: i64 = @intCast(y(node));
+
+        if ((adjacent_steps(&input, node) >= 3 and node != previous_node) or node == goal) {
+            // print("Found new graph node! {},{} | Prev: {},{}\n", .{ y(node) + 1, x(node) + 1, y(previous_node) + 1, x(previous_node) + 1 });
+            var edges = nodes.get(previous_node).?;
+            try edges.append(Edge{
+                .to_x = @intCast(node_x),
+                .to_y = @intCast(node_y),
+                .distance = distance,
+            });
+            try nodes.put(previous_node, edges);
+
+            if (nodes.get(node) == null) {
+                try nodes.put(node, ArrayList(Edge).init(allocator));
             }
 
-            if (x(a) == x(b)) {
-                // Check they can see each other.
-                const min_y = if (y(a) < y(b)) y(a) else y(b);
-                const max_y = if (y(a) > y(b)) y(a) else y(b);
+            distance = 0;
+            previous_node = node;
+        }
 
-                const contains_walls = for (min_y..max_y) |counter_y| {
-                    if (input[counter_y][x(a)] == WALL) {
-                        break true;
-                    }
-                } else false;
+        if (is_explored(explored, node)) {
+            continue;
+        }
 
-                if (contains_walls) {
-                    continue :lower;
-                }
+        try explored.append(node);
 
-                const new_edge = Edge{ .to_x = x(b), .to_y = y(b), .distance = max_y - min_y };
+        inline for (directions) |d| {
+            const new_x: usize = @intCast(node_x + d.x);
+            const new_y: usize = @intCast(node_y + d.y);
+            const new_coord = coord(new_x, new_y);
 
-                if (edges_map.get(a)) |edges_arr| {
-                    var new_edges_arr = try allocator.realloc(edges_arr, edges_arr.len + 1);
-                    new_edges_arr[new_edges_arr.len - 1] = new_edge;
-
-                    try edges_map.put(a, new_edges_arr);
-                } else {
-                    var new_edges_arr = try allocator.alloc(Edge, 1);
-                    new_edges_arr[0] = new_edge;
-
-                    try edges_map.put(a, new_edges_arr);
-                }
-            }
-
-            if (y(a) == y(b)) {
-                // Check they can see each other.
-                const min_x = if (x(a) < x(b)) x(a) else x(b);
-                const max_x = if (x(a) > x(b)) x(a) else x(b);
-
-                const contains_walls = for (min_x..max_x) |counter_x| {
-                    if (input[y(a)][counter_x] == WALL) {
-                        break true;
-                    }
-                } else false;
-
-                if (contains_walls) {
-                    continue :lower;
-                }
-
-                const new_edge = Edge{ .to_x = x(b), .to_y = y(b), .distance = max_x - min_x };
-
-                if (edges_map.get(a)) |edges_arr| {
-                    var new_edges_arr = try allocator.realloc(edges_arr, edges_arr.len + 1);
-                    new_edges_arr[new_edges_arr.len - 1] = new_edge;
-
-                    try edges_map.put(a, new_edges_arr);
-                } else {
-                    var new_edges_arr = try allocator.alloc(Edge, 1);
-                    new_edges_arr[0] = new_edge;
-
-                    try edges_map.put(a, new_edges_arr);
-                }
+            if (input[new_y][new_x] != WALL) {
+                try stack.append(State{
+                    .distance = distance + 1,
+                    .node = new_coord,
+                    .previous_node = previous_node,
+                });
             }
         }
     }
 
-    return edges_map;
+    var solid_nodes = Map(u128, []Edge).init(allocator);
+
+    var nodes_iterator = nodes.iterator();
+
+    while (nodes_iterator.next()) |entry| {
+        const node = entry.key_ptr.*;
+        const edges = entry.value_ptr.*;
+
+        var expanded_edges = ArrayList(Edge).init(allocator);
+        for (edges.items) |edge| {
+            try expanded_edges.append(edge);
+        }
+
+        var inner_iterator = nodes.iterator();
+        while (inner_iterator.next()) |inner_entry| {
+            const inner_node = inner_entry.key_ptr.*;
+            const inner_edges = inner_entry.value_ptr.*;
+
+            if (inner_node == node) {
+                continue;
+            }
+
+            for (inner_edges.items) |edge| {
+                if (coord(edge.to_x, edge.to_y) == node) {
+                    try expanded_edges.append(Edge{
+                        .to_x = x(inner_node),
+                        .to_y = y(inner_node),
+                        .distance = edge.distance,
+                    });
+                }
+            }
+        }
+
+        try solid_nodes.put(node, try expanded_edges.toOwnedSlice());
+    }
+
+    return solid_nodes;
 }
 
 fn includes(nodes: []u128, node: u128) bool {
@@ -362,16 +440,20 @@ fn dfs(allocator: std.mem.Allocator, edges_map: std.AutoHashMap(u128, []Edge), e
 
         defer allocator.free(popped_explored);
 
-        if (includes(popped_explored, popped_node)) {
-            continue;
-        }
-
         if (popped_node == end and popped_distance > longest_distance) {
             longest_distance = popped_distance;
+            print("Longest so far: {}\n", .{longest_distance});
         }
+
+        // print("{},{}\n", .{ y(popped_node) + 1, x(popped_node) + 1 });
+        // print("Distance: {}\n", .{popped_distance});
 
         const edges = edges_map.get(popped_node).?;
         for (edges) |edge| {
+            if (includes(popped_explored, coord(edge.to_x, edge.to_y))) {
+                continue;
+            }
+
             var copied_edges = try allocator.alloc(u128, popped_explored.len + 1);
             std.mem.copyForwards(u128, copied_edges, popped_explored);
             copied_edges[copied_edges.len - 1] = popped_node;
@@ -391,15 +473,28 @@ pub fn solve(input: [][]const u8) !void {
 
     var explored = std.AutoHashMap(u128, bool).init(allocator);
 
-    const start = coord(1, 0);
+    const start = coord(1, 1);
     try explored.put(start, true);
 
     const goal = coord(input[0].len - 2, input.len - 2);
+    const real_goal = coord(input[0].len - 2, input.len - 1);
 
     // const part1 = try bfs(input, goal, &explored, fakeStart, allocator, false);
     // print("Part 1: {}\n", .{part1});
 
-    const edges = try compress_graph(allocator, input);
+    var edges = try compress_graph_v2(allocator, start, goal, real_goal, input);
+    defer edges.deinit();
+
+    //var edges_iter = edges.iterator();
+    //while (edges_iter.next()) |entry| {
+    //print("({},{})\n", .{ y(entry.key_ptr.*) + 1, x(entry.key_ptr.*) + 1 });
+
+    //for (entry.value_ptr.*) |edge| {
+    //print(" -> ({},{}) | {}\n", .{ edge.to_y + 1, edge.to_x + 1, edge.distance });
+    //}
+    //}
+
+    print("Starting longest path\n", .{});
     const part2 = try dfs(allocator, edges, goal);
     print("Part 2: {}\n", .{part2});
 }
