@@ -1,2 +1,3 @@
 (library
- (name AdventOfCode2024))
+ (name AdventOfCode2024)
+ (libraries re2))

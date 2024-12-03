@@ -2,3 +2,4 @@
 ./zig-cache
 _build
 *.txt
+dune.lock
