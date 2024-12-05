@@ -13,7 +13,7 @@ let read_lines name =
 let () =
   print_endline "\nAdvent of Code 2024";
   let part1, part2 =
-    read_lines "./inputs/04.txt" |> AdventOfCode2024.Day_04.solve
+    read_lines "./inputs/05.txt" |> AdventOfCode2024.Day_05.solve
   in
   Printf.printf "Part 1: %s\nPart 2: %s\n" (string_of_int part1)
     (string_of_int part2)
