@@ -37,15 +37,16 @@ let attempt_solve_part2 { equals; numbers } =
     match numbers with
     | head :: [] -> [ head ]
     | head :: tail ->
-        let plus = List.map (fun i -> i + head) (loop tail) in
-        let times = List.map (fun i -> i * head) (loop tail) in
+        let below_solution = List.filter (fun i -> i <= equals) (loop tail) in
+        let plus = List.map (fun i -> i + head) below_solution in
+        let times = List.map (fun i -> i * head) below_solution in
         let concat =
           List.map
             (fun i ->
               let i_string = string_of_int i in
               let head_string = string_of_int head in
               int_of_string (i_string ^ head_string))
-            (loop tail)
+            below_solution
         in
         plus @ times @ concat
     | _ -> raise (Invalid_argument "")
