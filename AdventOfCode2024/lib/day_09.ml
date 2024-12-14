@@ -76,33 +76,6 @@ let defrag_file_system fs =
   in
   loop [] fs
 
-let defrag_file_system_part2 fs =
-  let rec loop acc fs' =
-    match fs' with
-    | [] -> acc
-    | head :: tail -> (
-        match head with
-        | Block b -> loop (acc @ [ Block b ]) tail
-        | Space s -> (
-            let last_item = remove_last_item tail in
-            match last_item with
-            | None -> acc
-            | Some (item, remaining_fs) -> (
-                match item with
-                | Space _ -> loop acc ([ head ] @ remaining_fs)
-                | Block b -> (
-                    match s.amount - b.amount with
-                    | 0 -> loop (acc @ [ Block b ]) remaining_fs
-                    | n when n < 0 ->
-                        loop (acc @ [ Space s ]) (remaining_fs @ [ Block b ])
-                    | n when n > 0 ->
-                        loop
-                          (acc @ [ Block { amount = b.amount; id = b.id } ])
-                          ([ Space { amount = n } ] @ remaining_fs)
-                    | _ -> raise (Invalid_argument "")))))
-  in
-  loop [] fs
-
 let arithmatic_series a n di =
   let af = float_of_int a in
   let nf = float_of_int n in
@@ -129,8 +102,5 @@ let solve lines =
   let line = List.nth lines 0 in
   let expanded_fs = expand_file_system line in
   let compresed_fs = defrag_file_system expanded_fs in
-  let compressed_fs_2 = defrag_file_system_part2 expanded_fs in
-  print_list compressed_fs_2;
   let part1 = checksum compresed_fs in
-  let part2 = checksum compressed_fs_2 in
-  (part1, part2)
+  (part1, 0)
