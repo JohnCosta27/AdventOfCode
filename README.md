@@ -1,3 +1,3 @@
 # Advent Of Code
 
-All my solutions.
+All my solutions
